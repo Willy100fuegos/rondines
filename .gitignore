@@ -6,7 +6,7 @@
 # ------------------------------------------------------------
 # 🔴 CRÍTICO: Credenciales y configuración sensible
 # ------------------------------------------------------------
-api/db.php          # Contiene host, usuario y contraseña de MySQL
+api/db.php
 *.env
 .env.*
 config.local.php
@@ -20,7 +20,7 @@ uploads/
 # ------------------------------------------------------------
 # 📋 Documentación interna de arquitectura
 # ------------------------------------------------------------
-context.md          # Expone estructura interna del sistema
+context.md
 
 # ------------------------------------------------------------
 # 🛠 Archivos de entorno de desarrollo (editor / IDE)
