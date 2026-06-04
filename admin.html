@@ -1,0 +1,893 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Goratrack - Centro de Comando</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+
+    <link rel="stylesheet" href="admin.css">
+</head>
+
+<body class="text-slate-800 antialiased flex h-screen" x-data="adminDashboard()">
+
+    <div x-show="!isLoggedIn" x-transition.opacity
+        class="fixed inset-0 z-50 bg-slate-900 flex flex-col items-center justify-center p-6">
+        <div class="bg-white p-5 rounded-2xl inline-block mb-8 shadow-2xl shadow-blue-900/20">
+            <img src="https://goratrack.tecuidamos.mx/img/logo.png" alt="Goratrack Logo" class="h-12">
+        </div>
+
+        <div class="w-full max-w-md bg-slate-800 p-8 rounded-2xl shadow-xl border border-slate-700">
+            <h2 class="text-2xl font-bold text-white mb-2 text-center">Acceso Administrativo</h2>
+            <p class="text-slate-400 text-sm mb-8 text-center">Ingrese sus credenciales de acceso</p>
+
+            <form @submit.prevent="doLogin()" class="space-y-6">
+                <div x-show="loginForm.error" x-cloak
+                    class="bg-red-500/20 border border-red-500 text-red-300 px-4 py-3 rounded-lg text-sm font-bold text-center">
+                    <span x-text="loginForm.error"></span>
+                </div>
+
+                <div>
+                    <label class="block text-slate-400 text-xs font-bold mb-2 uppercase tracking-wide">Usuario</label>
+                    <input type="text" x-model="loginForm.username" required
+                        class="w-full bg-slate-900 border border-slate-600 text-white rounded-lg p-3 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition">
+                </div>
+
+                <div>
+                    <label
+                        class="block text-slate-400 text-xs font-bold mb-2 uppercase tracking-wide">Contraseña</label>
+                    <input type="password" x-model="loginForm.password" required
+                        class="w-full bg-slate-900 border border-slate-600 text-white rounded-lg p-3 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition">
+                </div>
+
+                <button type="submit" :disabled="loginForm.isLoading"
+                    class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded-lg transition disabled:opacity-50 flex justify-center items-center">
+                    <svg x-show="loginForm.isLoading" class="animate-spin h-5 w-5 mr-3 text-white"
+                        xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4">
+                        </circle>
+                        <path class="opacity-75" fill="currentColor"
+                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z">
+                        </path>
+                    </svg>
+                    <span x-text="loginForm.isLoading ? 'AUTENTICANDO...' : 'INICIAR SESIÓN'"></span>
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <aside x-show="isLoggedIn" x-cloak
+        class="w-64 bg-slate-900 text-slate-300 flex flex-col hidden md:flex shrink-0 h-screen overflow-y-auto">
+        <div class="p-6 border-b border-slate-800 sticky top-0 bg-slate-900 z-20">
+            <div class="bg-white p-2 rounded-lg inline-block mb-3">
+                <img src="https://goratrack.tecuidamos.mx/img/logo.png" alt="Goratrack Logo" class="h-8">
+            </div>
+            <p class="text-xs text-slate-500 mt-1 uppercase font-bold"
+                x-text="'HOLA, ' + (adminUser?.username || 'ADMIN')"></p>
+        </div>
+
+        <nav class="flex-1 px-4 py-6 space-y-2">
+            <a href="#" x-show="adminUser?.role === 'superadmin'" @click.prevent="switchTab('services')"
+                :class="currentTab === 'services' ? 'bg-blue-600 text-white shadow-md' : 'hover:bg-slate-800 transition'"
+                class="flex items-center space-x-3 px-3 py-2 rounded-lg font-medium">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2"
+                    stroke="currentColor" class="w-5 h-5">
+                    <path stroke-linecap="round" stroke-linejoin="round"
+                        d="M3.75 21h16.5M4.5 3h15M5.25 3v18m13.5-18v18M9 6.75h1.5m-1.5 3h1.5m-1.5 3h1.5m3-6H15m-1.5 3H15m-1.5 3H15M9 21v-3.375c0-.621.504-1.125 1.125-1.125h3.75c.621 0 1.125.504 1.125 1.125V21" />
+                </svg>
+                <span>Servicios / Clientes</span>
+            </a>
+            <a href="#" x-show="adminUser?.role === 'superadmin'" @click.prevent="switchTab('guards')"
+                :class="currentTab === 'guards' ? 'bg-blue-600 text-white shadow-md' : 'hover:bg-slate-800 transition'"
+                class="flex items-center space-x-3 px-3 py-2 rounded-lg font-medium">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2"
+                    stroke="currentColor" class="w-5 h-5">
+                    <path stroke-linecap="round" stroke-linejoin="round"
+                        d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z" />
+                </svg>
+                <span>Guardias (PINs)</span>
+            </a>
+
+            <div x-show="adminUser?.role === 'superadmin'" class="border-t border-slate-800 my-4"></div>
+
+            <a href="#" @click.prevent="switchTab('checkpoints')"
+                :class="currentTab === 'checkpoints' ? 'bg-blue-600 text-white shadow-md' : 'hover:bg-slate-800 transition'"
+                class="flex items-center space-x-3 px-3 py-2 rounded-lg font-medium">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                    <path fill-rule="evenodd"
+                        d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z"
+                        clip-rule="evenodd" />
+                </svg>
+                <span>Puntos de Control</span>
+            </a>
+            <a href="#" @click.prevent="switchTab('audits')"
+                :class="currentTab === 'audits' ? 'bg-blue-600 text-white shadow-md' : 'hover:bg-slate-800 transition'"
+                class="flex items-center space-x-3 px-3 py-2 rounded-lg font-medium">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                    <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z" />
+                    <path fill-rule="evenodd"
+                        d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h3a1 1 0 100-2h-3zm-3 4a1 1 0 100 2h.01a1 1 0 100-2H7zm3 0a1 1 0 100 2h3a1 1 0 100-2h-3z"
+                        clip-rule="evenodd" />
+                </svg>
+                <span>Auditoría Fichajes</span>
+            </a>
+            <a href="#" @click.prevent="switchTab('reports')"
+                :class="currentTab === 'reports' ? 'bg-purple-600 text-white shadow-md' : 'hover:bg-slate-800 transition'"
+                class="flex items-center space-x-3 px-3 py-2 rounded-lg font-medium">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24"
+                    stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round"
+                        d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+                <span>Reportes de Incidentes</span>
+            </a>
+            <a href="#" @click.prevent="switchTab('analytics')"
+                :class="currentTab === 'analytics' ? 'bg-emerald-600 text-white shadow-md' : 'hover:bg-slate-800 transition'"
+                class="flex items-center space-x-3 px-3 py-2 rounded-lg font-medium mt-2">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2"
+                    stroke="currentColor" class="w-5 h-5">
+                    <path stroke-linecap="round" stroke-linejoin="round"
+                        d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" />
+                </svg>
+                <span>Analíticas y Reportes</span>
+            </a>
+        </nav>
+
+        <div class="p-4 border-t border-slate-800">
+            <button @click="logout()"
+                class="w-full flex items-center justify-center space-x-2 text-slate-400 hover:text-white hover:bg-slate-800 p-2 rounded-lg transition">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-red-500" fill="none" viewBox="0 0 24 24"
+                    stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                </svg>
+                <span class="font-bold">Cerrar Sesión</span>
+            </button>
+        </div>
+    </aside>
+
+    <main x-show="isLoggedIn" x-cloak class="flex-1 flex flex-col h-screen overflow-y-auto bg-slate-50 relative">
+
+        <div x-show="systemError" x-cloak
+            class="bg-red-600 text-white p-4 m-6 rounded-lg shadow-lg flex justify-between items-center z-50">
+            <div>
+                <h3 class="font-bold text-lg">⚠️ Error del Sistema Detectado</h3>
+                <p class="text-sm font-mono mt-1" x-text="systemError"></p>
+            </div>
+            <button @click="systemError = ''"
+                class="bg-red-800 px-3 py-1 rounded text-sm hover:bg-red-900 transition">Cerrar</button>
+        </div>
+
+        <header
+            class="bg-white shadow-sm border-b border-slate-200 p-4 flex justify-between items-center shrink-0 sticky top-0 z-20"
+            x-show="currentTab !== 'services'">
+            <div class="flex items-center space-x-4">
+                <h2 class="text-sm font-bold text-slate-500 uppercase tracking-wide">Contexto de Servicio:</h2>
+
+                <!-- SELECTOR VISIBLE PARA SUPERADMIN Y PARA CLIENTES CORPORATIVOS -->
+                <select
+                    x-show="adminUser?.role === 'superadmin' || adminUser?.corporate_id || adminUser?.role === 'operaciones'"
+                    x-model="selectedTenantId" @change="reloadContext()"
+                    class="bg-slate-50 border border-slate-300 text-slate-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-64 p-2.5 font-bold shadow-sm">
+                    <option value="" disabled
+                        x-text="isLoadingTenants ? 'Sincronizando...' : (allowedTenants.length === 0 ? '-- Sin Servicios en BD --' : '-- Selecciona un Servicio --')">
+                    </option>
+                    <template x-for="tenant in allowedTenants" :key="tenant.id">
+                        <option :value="String(tenant.id)" x-text="tenant.name"></option>
+                    </template>
+                </select>
+
+                <!-- CLIENTE DE UNA SOLA EMPRESA (Sin corporativo) -->
+                <div x-show="adminUser?.role === 'client' && !adminUser?.corporate_id"
+                    class="bg-slate-100 border border-slate-300 text-slate-600 px-4 py-2 rounded-lg font-bold">
+                    <span x-text="getTenantName()"></span>
+                </div>
+            </div>
+        </header>
+
+        <div class="p-6 h-full flex flex-col pb-12">
+
+            <div x-show="currentTab === 'services' && adminUser?.role === 'superadmin'" x-cloak class="flex flex-col">
+                <div class="flex justify-between items-center mb-6">
+                    <div>
+                        <h2 class="text-2xl font-bold text-slate-800">Directorio de Servicios</h2>
+                        <p class="text-sm text-slate-500">Gestione las empresas o locaciones donde se presta el
+                            servicio.</p>
+                    </div>
+                    <button @click="isNewServiceModalOpen = true"
+                        class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-semibold shadow transition">
+                        + Nuevo Servicio
+                    </button>
+                </div>
+                <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr
+                                class="bg-slate-50 border-b border-slate-200 text-xs uppercase tracking-wider text-slate-500">
+                                <th class="p-4 font-semibold w-16">ID</th>
+                                <th class="p-4 font-semibold">Nombre del Servicio / Cliente</th>
+                                <th class="p-4 font-semibold text-right">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-200">
+                            <tr x-show="isLoadingTenants">
+                                <td colspan="3" class="p-8 text-center text-slate-500 animate-pulse">Cargando datos...
+                                </td>
+                            </tr>
+                            <tr x-show="!isLoadingTenants && tenants.length === 0">
+                                <td colspan="3" class="p-8 text-center font-bold text-slate-500">No hay servicios
+                                    registrados en esta Base de Datos. Haz clic en '+ Nuevo Servicio'.</td>
+                            </tr>
+                            <template x-for="tenant in tenants" :key="tenant.id">
+                                <tr class="hover:bg-slate-50 transition">
+                                    <td class="p-4 font-mono text-sm text-slate-500" x-text="tenant.id"></td>
+                                    <td class="p-4 font-bold text-slate-800" x-text="tenant.name"></td>
+                                    <td class="p-4 text-right">
+                                        <button @click="confirmDelete('services', tenant)"
+                                            class="text-red-500 hover:text-red-700 flex justify-end w-full">
+                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none"
+                                                viewBox="0 0 24 24" stroke="currentColor">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                            </svg>
+                                        </button>
+                                    </td>
+                                </tr>
+                            </template>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div x-show="currentTab === 'guards' && adminUser?.role === 'superadmin'" x-cloak class="flex flex-col">
+                <div class="flex justify-between items-center mb-6">
+                    <div>
+                        <h2 class="text-2xl font-bold text-slate-800">Guardias del Servicio</h2>
+                        <p class="text-sm text-slate-500">Gestione el personal asignado a este servicio.</p>
+                    </div>
+                    <button @click="openNewGuardModal()"
+                        class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-semibold shadow transition">
+                        + Nuevo Guardia
+                    </button>
+                </div>
+                <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr
+                                class="bg-slate-50 border-b border-slate-200 text-xs uppercase tracking-wider text-slate-500">
+                                <th class="p-4 font-semibold">Nombre del Guardia</th>
+                                <th class="p-4 font-semibold text-center">PIN de Acceso</th>
+                                <th class="p-4 font-semibold text-right">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-200">
+                            <tr x-show="guards.length === 0">
+                                <td colspan="3" class="p-8 text-center text-slate-500">No hay guardias registrados.</td>
+                            </tr>
+                            <template x-for="guard in guards" :key="guard.id">
+                                <tr class="hover:bg-slate-50 transition">
+                                    <td class="p-4 font-bold text-slate-800" x-text="guard.name"></td>
+                                    <td class="p-4 text-center">
+                                        <span
+                                            class="bg-slate-800 text-emerald-400 font-mono text-lg px-3 py-1 rounded shadow-inner tracking-widest"
+                                            x-text="guard.pin_code"></span>
+                                    </td>
+                                    <td class="p-4 text-right">
+                                        <button @click="confirmDelete('guards', guard)"
+                                            class="text-red-500 hover:text-red-700 flex justify-end w-full">
+                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none"
+                                                viewBox="0 0 24 24" stroke="currentColor">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                            </svg>
+                                        </button>
+                                    </td>
+                                </tr>
+                            </template>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div x-show="currentTab === 'checkpoints'" x-cloak class="flex flex-col h-[calc(100vh-10rem)]">
+                <div class="flex justify-between items-center mb-4 shrink-0">
+                    <div>
+                        <h2 class="text-2xl font-bold text-slate-800">Puntos de Control Físico</h2>
+                        <p class="text-sm text-slate-500">Ubicación y gestión de etiquetas QR de la instalación.</p>
+                    </div>
+                    <button x-show="adminUser?.role === 'superadmin'" @click="isNewPointModalOpen = true"
+                        class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-semibold shadow transition">
+                        + Nuevo Punto QR
+                    </button>
+                </div>
+
+                <div class="flex flex-col gap-4 flex-1 min-h-0">
+                    <div
+                        class="w-full h-64 md:h-80 shrink-0 bg-slate-200 rounded-xl shadow-sm border border-slate-300 overflow-hidden relative map-container">
+                        <div id="checkpointsMap" class="w-full h-full z-0"></div>
+                        <div x-show="checkpoints.length === 0 || checkpoints.filter(cp => cp.expected_lat !== null).length === 0"
+                            class="absolute inset-0 bg-slate-900/50 flex items-center justify-center backdrop-blur-sm z-10 pointer-events-none">
+                            <p class="text-white font-bold tracking-wide px-4 text-center">Configura las coordenadas en
+                                la App Móvil para ver los puntos en el mapa.</p>
+                        </div>
+                    </div>
+
+                    <div
+                        class="w-full flex-1 bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col overflow-hidden min-h-[250px]">
+                        <div class="overflow-y-auto flex-1">
+                            <table class="w-full text-left border-collapse">
+                                <thead>
+                                    <tr
+                                        class="bg-slate-50 border-b border-slate-200 text-[11px] uppercase tracking-wider text-slate-500 sticky top-0 z-10">
+                                        <th class="p-4 font-semibold">Ubicación</th>
+                                        <th class="p-4 font-semibold">Estado GPS</th>
+                                        <th class="p-4 font-semibold text-right">Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-slate-200">
+                                    <tr x-show="checkpoints.length === 0">
+                                        <td colspan="3" class="p-8 text-center text-slate-500">No hay puntos para este
+                                            servicio.</td>
+                                    </tr>
+                                    <template x-for="cp in checkpoints" :key="cp.id">
+                                        <tr class="hover:bg-blue-50 transition cursor-pointer"
+                                            @click="focusCheckpointOnMap(cp)">
+                                            <td class="p-4">
+                                                <p class="font-bold text-slate-800 text-sm" x-text="cp.name"></p>
+                                                <p class="text-[10px] text-slate-400 font-mono mt-1" x-text="cp.uuid">
+                                                </p>
+                                            </td>
+                                            <td class="p-4">
+                                                <span x-show="cp.expected_lat !== null"
+                                                    class="text-xs font-mono text-emerald-700 bg-emerald-100 px-2 py-1 rounded"
+                                                    x-text="cp.expected_lat + ', ' + cp.expected_lng"></span>
+                                                <span x-show="cp.expected_lat === null"
+                                                    class="text-xs font-bold text-orange-700 bg-orange-100 px-2 py-1 rounded animate-pulse">Pendiente
+                                                    Configurar</span>
+                                            </td>
+                                            <td class="p-4 text-right">
+                                                <div class="flex justify-end space-x-4">
+                                                    <button @click.stop="openQrModal(cp)"
+                                                        class="text-blue-600 hover:text-blue-800 text-sm font-semibold flex items-center">
+                                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1"
+                                                            fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                            <path stroke-linecap="round" stroke-linejoin="round"
+                                                                stroke-width="2" d="M12 4v16m8-8H4" />
+                                                        </svg> Ver QR
+                                                    </button>
+                                                    <button x-show="adminUser?.role === 'superadmin'"
+                                                        @click.stop="confirmDelete('checkpoints', cp)"
+                                                        class="text-red-500 hover:text-red-700">
+                                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5"
+                                                            fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                            <path stroke-linecap="round" stroke-linejoin="round"
+                                                                stroke-width="2"
+                                                                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                                        </svg>
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    </template>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div x-show="currentTab === 'audits'" x-cloak x-transition.opacity
+                class="flex flex-col h-[calc(100vh-10rem)]">
+                <div class="flex justify-between items-center mb-4 shrink-0">
+                    <h2 class="text-2xl font-bold text-slate-800">Monitor de Fichajes y Ubicación</h2>
+                    <button @click="refreshAudits()"
+                        class="bg-slate-200 hover:bg-slate-300 text-slate-700 px-4 py-2 rounded-lg text-sm font-bold shadow-sm flex items-center transition">
+                        <svg :class="{'animate-spin': isRefreshingAudits}" xmlns="http://www.w3.org/2000/svg"
+                            fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4 mr-2">
+                            <path stroke-linecap="round" stroke-linejoin="round"
+                                d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
+                        </svg>
+                        <span x-text="isRefreshingAudits ? 'Cargando...' : 'Actualizar GPS'"></span>
+                    </button>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 flex-1">
+                    <div
+                        class="lg:col-span-7 bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col overflow-hidden h-full">
+                        <div class="overflow-y-auto flex-1">
+                            <table class="w-full text-left border-collapse">
+                                <thead>
+                                    <tr
+                                        class="bg-slate-50 border-b border-slate-200 text-[11px] uppercase tracking-wider text-slate-500 sticky top-0 z-10">
+                                        <th class="p-3 font-semibold">Turno (Rondín)</th>
+                                        <th class="p-3 font-semibold">Punto Reportado</th>
+                                        <th class="p-3 font-semibold">Hora de Registro</th>
+                                        <th class="p-3 font-semibold text-center">Estatus</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-slate-200">
+                                    <tr x-show="paginatedAudits.length === 0">
+                                        <td colspan="4" class="p-8 text-center text-slate-500">Sin datos.</td>
+                                    </tr>
+                                    <template x-for="audit in paginatedAudits" :key="audit.id">
+                                        <tr class="hover:bg-blue-50 transition cursor-pointer"
+                                            @click="viewOnMap(audit)">
+                                            <td class="p-3">
+                                                <p class="font-bold text-slate-800 text-xs"
+                                                    x-text="audit.round_id || 'N/A'"></p>
+                                                <p class="text-[10px] text-slate-500 font-bold uppercase mt-0.5"
+                                                    x-text="'Turno ' + (audit.shift || 'N/A')"></p>
+                                            </td>
+                                            <td class="p-3 text-xs font-bold text-slate-700"
+                                                x-text="audit.checkpoint_name || 'Desconocido'"></td>
+                                            <td class="p-3 text-xs font-mono text-slate-500" x-text="audit.captured_at">
+                                            </td>
+                                            <td class="p-3 text-center">
+                                                <span x-show="audit.is_geofence_valid == 1"
+                                                    class="px-2 py-1 rounded text-[10px] font-bold bg-emerald-100 text-emerald-700">OK</span>
+                                                <span x-show="audit.is_geofence_valid == 0"
+                                                    class="px-2 py-1 rounded text-[10px] font-bold bg-red-100 text-red-700 animate-pulse">ALERTA</span>
+                                            </td>
+                                        </tr>
+                                    </template>
+                                </tbody>
+                            </table>
+                        </div>
+                        <div
+                            class="bg-slate-50 p-3 border-t border-slate-200 flex justify-between items-center text-xs shrink-0">
+                            <button @click="if(auditCurrentPage > 1) auditCurrentPage--"
+                                :disabled="auditCurrentPage === 1"
+                                class="px-3 py-1.5 bg-white border border-slate-300 rounded hover:bg-slate-100 disabled:opacity-50 font-bold text-slate-600 transition">Anterior</button>
+                            <span class="font-medium text-slate-500">Página <span class="font-bold text-slate-800"
+                                    x-text="auditCurrentPage"></span> de <span class="font-bold text-slate-800"
+                                    x-text="totalAuditPages"></span></span>
+                            <button @click="if(auditCurrentPage < totalAuditPages) auditCurrentPage++"
+                                :disabled="auditCurrentPage === totalAuditPages || totalAuditPages === 0"
+                                class="px-3 py-1.5 bg-white border border-slate-300 rounded hover:bg-slate-100 disabled:opacity-50 font-bold text-slate-600 transition">Siguiente</button>
+                        </div>
+                    </div>
+                    <div
+                        class="lg:col-span-5 bg-slate-200 rounded-xl shadow-sm border border-slate-300 overflow-hidden relative map-container h-full min-h-[400px]">
+                        <div id="auditMap" class="w-full h-full z-0"></div>
+                        <div x-show="!selectedAuditForMap"
+                            class="absolute inset-0 bg-slate-900/50 flex items-center justify-center backdrop-blur-sm z-10 pointer-events-none">
+                            <p class="text-white font-bold tracking-wide px-4 text-center">Selecciona un registro de la
+                                tabla para ver el mapa.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div x-show="currentTab === 'reports'" x-cloak x-transition.opacity class="flex flex-col pb-10">
+                <div class="flex justify-between items-center mb-6">
+                    <div>
+                        <h2 class="text-2xl font-bold text-slate-800">Bitácora de Incidentes (Reportes)</h2>
+                        <p class="text-sm text-slate-500">Documentación fotográfica y descripción de eventualidades en
+                            campo.</p>
+                    </div>
+                    <div class="flex items-center space-x-2 bg-white p-2 rounded-lg shadow-sm border border-slate-200">
+                        <input type="date" x-model="startDate"
+                            class="border-none bg-transparent text-sm text-slate-700 font-medium focus:ring-0 outline-none cursor-pointer">
+                        <span class="text-slate-400 text-sm">a</span>
+                        <input type="date" x-model="endDate"
+                            class="border-none bg-transparent text-sm text-slate-700 font-medium focus:ring-0 outline-none cursor-pointer">
+                        <button @click="loadReports()"
+                            class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-md text-sm font-bold shadow-sm transition">Buscar</button>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                    <div
+                        class="bg-white p-4 rounded-xl border-l-4 border-l-purple-500 shadow-sm flex items-center justify-between">
+                        <div>
+                            <p class="text-[10px] text-slate-500 font-bold uppercase tracking-wide">Total de Reportes
+                            </p>
+                            <p class="text-2xl font-black text-slate-800 mt-1" x-text="reportsKpiTotal"></p>
+                        </div>
+                        <div class="bg-purple-50 p-2 rounded-full text-purple-600">
+                            <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                        </div>
+                    </div>
+                    <div
+                        class="bg-white p-4 rounded-xl border-l-4 border-l-red-500 shadow-sm flex items-center justify-between">
+                        <div>
+                            <p class="text-[10px] text-slate-500 font-bold uppercase tracking-wide">Incidente Principal
+                            </p>
+                            <p class="text-lg font-black text-slate-800 mt-1" x-text="reportsKpiTopCategory"></p>
+                        </div>
+                        <div class="bg-red-50 p-2 rounded-full text-red-600">
+                            <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                            </svg>
+                        </div>
+                    </div>
+                    <div
+                        class="bg-white p-4 rounded-xl border-l-4 border-l-blue-500 shadow-sm flex items-center justify-between">
+                        <div>
+                            <p class="text-[10px] text-slate-500 font-bold uppercase tracking-wide">Día con más reportes
+                            </p>
+                            <p class="text-lg font-black text-slate-800 mt-1" x-text="reportsKpiTopDay"></p>
+                        </div>
+                        <div class="bg-blue-50 p-2 rounded-full text-blue-600">
+                            <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                            </svg>
+                        </div>
+                    </div>
+                </div>
+
+                <div x-show="incidentReports.length === 0"
+                    class="bg-white p-10 rounded-xl border border-slate-200 text-center shadow-sm">
+                    <svg class="mx-auto h-12 w-12 text-slate-300 mb-3" fill="none" viewBox="0 0 24 24"
+                        stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1"
+                            d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    <p class="text-slate-500 font-semibold">No se encontraron reportes en el rango de fechas
+                        seleccionado.</p>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                    <template x-for="report in incidentReports" :key="report.id">
+                        <div
+                            class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden flex flex-col hover:shadow-md transition">
+                            <div class="p-4 border-b border-slate-100 bg-slate-50 flex justify-between items-start">
+                                <div>
+                                    <span
+                                        class="inline-block px-2 py-1 bg-red-100 text-red-700 text-[10px] font-bold uppercase rounded-md mb-2"
+                                        x-text="report.category"></span>
+                                    <h3 class="font-bold text-slate-800 text-sm" x-text="'Folio: ' + report.folio"></h3>
+                                </div>
+                                <div class="text-right">
+                                    <p class="text-[10px] font-mono text-slate-500"
+                                        x-text="formatDate(report.captured_at)"></p>
+                                    <p class="text-[10px] font-bold text-slate-400 mt-1"
+                                        x-text="formatTime(report.captured_at)"></p>
+                                </div>
+                            </div>
+
+                            <div class="p-4 flex-1">
+                                <p class="text-sm text-slate-600 mb-4 whitespace-pre-wrap" x-text="report.description">
+                                </p>
+
+                                <div class="text-xs text-slate-500 flex items-center mb-1">
+                                    <svg class="w-4 h-4 mr-1 text-slate-400" fill="none" stroke="currentColor"
+                                        viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                            d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                                    </svg>
+                                    <span class="font-bold" x-text="report.guard_name"></span>
+                                </div>
+                                <div class="text-xs text-slate-500 flex items-center">
+                                    <svg class="w-4 h-4 mr-1 text-slate-400" fill="none" stroke="currentColor"
+                                        viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                            d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                                    </svg>
+                                    <span
+                                        x-text="report.gps_lat ? (report.gps_lat + ', ' + report.gps_lng) : 'Sin coordenadas GPS'"></span>
+                                </div>
+                                <div x-show="report.round_id"
+                                    class="text-[10px] text-slate-400 font-mono mt-2 pt-2 border-t border-slate-100">
+                                    Enviado durante el rondín: <span x-text="report.round_id"></span>
+                                </div>
+                            </div>
+
+                            <div x-show="report.photo_1 || report.photo_2 || report.photo_3"
+                                class="p-3 bg-slate-50 border-t border-slate-100 flex gap-2 overflow-x-auto">
+                                <template x-if="report.photo_1">
+                                    <img @click="openPhotoModal(report.photo_1)"
+                                        :src="'https://rondines.goratrack.link/' + report.photo_1"
+                                        class="h-16 w-16 object-cover rounded border border-slate-300 cursor-pointer hover:opacity-80 transition">
+                                </template>
+                                <template x-if="report.photo_2">
+                                    <img @click="openPhotoModal(report.photo_2)"
+                                        :src="'https://rondines.goratrack.link/' + report.photo_2"
+                                        class="h-16 w-16 object-cover rounded border border-slate-300 cursor-pointer hover:opacity-80 transition">
+                                </template>
+                                <template x-if="report.photo_3">
+                                    <img @click="openPhotoModal(report.photo_3)"
+                                        :src="'https://rondines.goratrack.link/' + report.photo_3"
+                                        class="h-16 w-16 object-cover rounded border border-slate-300 cursor-pointer hover:opacity-80 transition">
+                                </template>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+            </div>
+
+            <div x-show="currentTab === 'analytics'" x-cloak x-transition.opacity class="flex flex-col pb-10">
+                <div class="flex justify-between items-center mb-6">
+                    <h2 class="text-2xl font-bold text-slate-800">Reporte de Operaciones de Rondines</h2>
+                    <div class="flex items-center space-x-2 bg-white p-2 rounded-lg shadow-sm border border-slate-200">
+                        <input type="date" x-model="startDate"
+                            class="border-none bg-transparent text-sm text-slate-700 font-medium focus:ring-0 outline-none cursor-pointer">
+                        <span class="text-slate-400 text-sm">a</span>
+                        <input type="date" x-model="endDate"
+                            class="border-none bg-transparent text-sm text-slate-700 font-medium focus:ring-0 outline-none cursor-pointer">
+                        <button @click="loadAnalytics()"
+                            class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-md text-sm font-bold shadow-sm transition">Generar</button>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                    <div
+                        class="bg-white p-4 rounded-xl border-l-4 border-l-orange-500 shadow-sm flex items-center justify-between">
+                        <div>
+                            <p class="text-[10px] text-slate-500 font-bold uppercase tracking-wide">Rondines Realizados
+                            </p>
+                            <p class="text-2xl font-black text-slate-800 mt-1" x-text="kpiRounds"></p>
+                        </div>
+                        <div class="bg-orange-50 p-2 rounded-full text-orange-600">
+                            <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                        </div>
+                    </div>
+                    <div
+                        class="bg-white p-4 rounded-xl border-l-4 border-l-blue-500 shadow-sm flex items-center justify-between">
+                        <div>
+                            <p class="text-[10px] text-slate-500 font-bold uppercase tracking-wide">Total Escaneos</p>
+                            <p class="text-2xl font-black text-slate-800 mt-1" x-text="kpiTotal"></p>
+                        </div>
+                        <div class="bg-blue-50 p-2 rounded-full text-blue-600">
+                            <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                        </div>
+                    </div>
+                    <div
+                        class="bg-white p-4 rounded-xl border-l-4 border-l-emerald-500 shadow-sm flex items-center justify-between">
+                        <div>
+                            <p class="text-[10px] text-slate-500 font-bold uppercase tracking-wide">Escaneos por Día</p>
+                            <p class="text-2xl font-black text-slate-800 mt-1" x-text="kpiPromedio"></p>
+                        </div>
+                        <div class="bg-emerald-50 p-2 rounded-full text-emerald-600">
+                            <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                            </svg>
+                        </div>
+                    </div>
+                    <div
+                        class="bg-white p-4 rounded-xl border-l-4 border-l-purple-500 shadow-sm flex items-center justify-between">
+                        <div>
+                            <p class="text-[10px] text-slate-500 font-bold uppercase tracking-wide">Puntos Únicos</p>
+                            <p class="text-2xl font-black text-slate-800 mt-1" x-text="kpiPuntos"></p>
+                        </div>
+                        <div class="bg-purple-50 p-2 rounded-full text-purple-600">
+                            <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                            </svg>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-white p-5 rounded-xl border border-slate-200 mb-6 shadow-sm">
+                    <h3 class="text-sm font-bold text-slate-800 mb-4">Reporte de Cumplimiento por Punto (Todos)</h3>
+                    <div class="w-full">
+                        <div class="relative w-full" :style="'height: ' + chartHeight + 'px'">
+                            <canvas id="complianceChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+                    <div
+                        class="bg-white p-5 rounded-xl border border-slate-200 lg:col-span-2 overflow-x-auto shadow-sm">
+                        <h3 class="text-sm font-bold text-slate-800 mb-4">Mapa de Calor de Actividad</h3>
+                        <div class="flex flex-col space-y-1 min-w-[500px]">
+                            <template x-for="(dayName, dayIdx) in ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb']"
+                                :key="dayIdx">
+                                <div class="flex items-center space-x-1">
+                                    <div class="w-8 text-xs text-slate-500 font-bold" x-text="dayName"></div>
+                                    <template x-for="hour in 24" :key="hour">
+                                        <div class="flex-1 h-4 rounded-sm transition-colors duration-300"
+                                            :class="getHeatColor(heatMap, dayIdx, hour-1)"></div>
+                                    </template>
+                                </div>
+                            </template>
+                            <div class="flex items-center space-x-1 mt-1">
+                                <div class="w-8"></div>
+                                <div class="flex justify-between w-full text-[10px] text-slate-400 font-mono">
+                                    <span>0h</span><span>6h</span><span>12h</span><span>18h</span><span>23h</span>
+                                </div>
+                            </div>
+                        </div>
+                        <p class="text-[10px] text-slate-400 mt-4 italic">Análisis Rápido: Tonos más oscuros indican
+                            mayor concentración de escaneos a esa hora.</p>
+                    </div>
+
+                    <div class="bg-white rounded-xl border border-slate-200 flex flex-col shadow-sm overflow-hidden">
+                        <div class="p-4 border-b border-slate-200 bg-slate-50">
+                            <h3 class="text-sm font-bold text-slate-800">Ritmo de Cobertura Promedio</h3>
+                        </div>
+                        <div class="p-4 flex-1 overflow-y-auto max-h-[250px]">
+                            <p class="text-[10px] text-slate-500 mb-3 leading-relaxed">Mide el tiempo promedio, en
+                                minutos, que le toma al guardia moverse entre puntos.</p>
+                            <ul class="space-y-2">
+                                <template x-for="rhythm in rhythms" :key="rhythm.date">
+                                    <li
+                                        class="flex justify-between items-center py-2 border-b border-slate-100 last:border-0">
+                                        <span class="text-xs font-bold text-slate-600" x-text="rhythm.dayName"></span>
+                                        <span class="text-sm font-black text-red-600"
+                                            x-text="rhythm.minutes + ' min'"></span>
+                                    </li>
+                                </template>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <div x-show="isPhotoModalOpen" x-cloak
+        class="fixed inset-0 z-[70] flex items-center justify-center bg-slate-900/90 backdrop-blur-sm p-4"
+        @click.self="isPhotoModalOpen = false">
+        <div class="relative max-w-4xl w-full">
+            <button @click="isPhotoModalOpen = false"
+                class="absolute -top-10 right-0 text-white hover:text-slate-300 font-bold text-xl">Cerrar ✕</button>
+            <img :src="selectedPhotoUrl" class="w-full max-h-[85vh] object-contain rounded-lg shadow-2xl">
+        </div>
+    </div>
+
+    <div x-show="isNewServiceModalOpen" x-cloak
+        class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
+        <div @click.away="isNewServiceModalOpen = false"
+            class="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden">
+            <div class="p-5 border-b border-slate-100 bg-slate-50">
+                <h3 class="font-bold text-lg text-slate-800">Alta de Nuevo Servicio</h3>
+            </div>
+            <form @submit.prevent="saveNewService" class="p-6 space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">Nombre de la Empresa o Locación</label>
+                    <input type="text" x-model="newService.name" required
+                        class="w-full border border-slate-300 rounded-lg p-2 focus:ring-2 focus:ring-blue-500 outline-none">
+                </div>
+                <div class="mt-6 pt-4 flex justify-end space-x-3">
+                    <button type="button" @click="isNewServiceModalOpen = false"
+                        class="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg font-medium transition">Cancelar</button>
+                    <button type="submit"
+                        class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition">Crear
+                        Servicio</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div x-show="isNewGuardModalOpen" x-cloak
+        class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
+        <div @click.away="isNewGuardModalOpen = false"
+            class="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden">
+            <div class="p-5 border-b border-slate-100 bg-slate-50">
+                <h3 class="font-bold text-lg text-slate-800">Registrar Guardia</h3>
+            </div>
+            <form @submit.prevent="saveNewGuard" class="p-6 space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">Nombre Completo</label>
+                    <input type="text" x-model="newGuard.name" required
+                        class="w-full border border-slate-300 rounded-lg p-2 focus:ring-2 focus:ring-blue-500 outline-none">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">PIN Autogenerado</label>
+                    <input type="text" x-model="newGuard.pin" readonly
+                        class="w-full bg-slate-100 border border-slate-300 rounded-lg p-3 text-center text-2xl font-mono tracking-[0.5em] font-bold text-emerald-600 outline-none">
+                </div>
+                <div class="mt-6 pt-4 flex justify-end space-x-3 border-t border-slate-100">
+                    <button type="button" @click="isNewGuardModalOpen = false"
+                        class="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg font-medium transition">Cancelar</button>
+                    <button type="submit"
+                        class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition">Guardar
+                        Operario</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div x-show="isNewPointModalOpen" x-cloak
+        class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
+        <div @click.away="isNewPointModalOpen = false"
+            class="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden">
+            <div class="p-5 border-b border-slate-100 bg-slate-50">
+                <h3 class="font-bold text-lg text-slate-800">Crear Cascarón QR</h3>
+            </div>
+            <form @submit.prevent="saveNewPoint" class="p-6 space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">Nombre de la Ubicación</label>
+                    <input type="text" x-model="newPoint.name" required
+                        class="w-full border border-slate-300 rounded-lg p-2 focus:ring-2 focus:ring-blue-500 outline-none"
+                        placeholder="Ej. Cuarto de Bombas">
+                </div>
+                <div class="bg-slate-50 p-3 rounded-lg border border-slate-200">
+                    <p class="text-xs text-slate-500 mb-2 font-semibold">📍 Si dejas las coordenadas en blanco, el
+                        guardia las capturará en campo escaneando este QR por primera vez.</p>
+                    <div class="grid grid-cols-2 gap-4 mt-2">
+                        <div>
+                            <label class="block text-xs font-medium text-slate-700 mb-1">Latitud (Opcional)</label>
+                            <input type="number" step="any" x-model="newPoint.lat"
+                                class="w-full border border-slate-300 rounded-lg p-2 text-sm outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-slate-700 mb-1">Longitud (Opcional)</label>
+                            <input type="number" step="any" x-model="newPoint.lng"
+                                class="w-full border border-slate-300 rounded-lg p-2 text-sm outline-none">
+                        </div>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">Tolerancia (Metros)</label>
+                    <input type="number" x-model="newPoint.tolerance" required min="10"
+                        class="w-full border border-slate-300 rounded-lg p-2 focus:ring-2 focus:ring-blue-500 outline-none">
+                </div>
+                <div class="mt-6 pt-4 flex justify-end space-x-3 border-t border-slate-100">
+                    <button type="button" @click="isNewPointModalOpen = false"
+                        class="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg font-medium transition">Cancelar</button>
+                    <button type="submit"
+                        class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition">Generar
+                        QR</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div x-show="isDeleteModalOpen" x-cloak
+        class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
+        <div @click.away="isDeleteModalOpen = false"
+            class="bg-white rounded-xl shadow-2xl w-full max-w-sm overflow-hidden text-center p-6">
+            <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100 mb-4">
+                <svg class="h-6 w-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+            </div>
+            <h3 class="text-lg font-bold text-slate-900 mb-2">¿Confirmar Eliminación?</h3>
+            <p class="text-sm text-slate-500 mb-6">Estás a punto de eliminar un registro de forma permanente. Esta
+                acción no se puede deshacer.</p>
+            <div class="flex space-x-3 mt-4">
+                <button @click="isDeleteModalOpen = false"
+                    class="flex-1 bg-slate-100 text-slate-700 hover:bg-slate-200 py-2 rounded-lg font-semibold transition">Cancelar</button>
+                <button @click="executeDelete()"
+                    class="flex-1 bg-red-600 text-white hover:bg-red-700 py-2 rounded-lg font-semibold transition">Sí,
+                    Eliminar</button>
+            </div>
+        </div>
+    </div>
+
+    <div x-show="isModalOpen" x-cloak
+        class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
+        <div @click.away="closeModal()" class="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden">
+            <div class="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                <h3 class="font-bold text-lg text-slate-800">Etiqueta QR</h3>
+                <button @click="closeModal()" class="text-slate-400 hover:text-slate-600 transition">Cerrar</button>
+            </div>
+            <div class="p-8 text-center flex flex-col items-center">
+                <h4 class="font-bold text-xl text-slate-800 mb-1" x-text="selectedCheckpoint.name"></h4>
+                <div id="qrcode-container" class="p-4 border-4 border-slate-800 rounded-xl bg-white shadow-inner"></div>
+            </div>
+            <div class="p-4 bg-slate-50 border-t border-slate-100">
+                <button @click="printQR()"
+                    class="w-full bg-slate-800 hover:bg-slate-900 text-white font-bold py-2 rounded-lg transition">Imprimir</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.3/dist/cdn.min.js" defer></script>
+    <script src="admin-dashboard.js"></script>
+</body>
+
+</html>

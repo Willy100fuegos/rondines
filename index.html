@@ -1,0 +1,746 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="theme-color" content="#0f172a">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="manifest" href="manifest.json">
+    
+    <title>Goratrack - App de Rondines</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+    <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.3/dist/cdn.min.js" defer></script>
+    <style>
+        body { background-color: #0f172a; color: #f8fafc; -webkit-tap-highlight-color: transparent; user-select: none; }
+        .btn-massive { min-height: 70px; touch-action: manipulation; }
+        [x-cloak] { display: none !important; }
+        #reader video { border-radius: 0.5rem; object-fit: cover; }
+        .photo-slot { aspect-ratio: 1 / 1; object-fit: cover; }
+    </style>
+</head>
+<body class="flex flex-col h-screen" x-data="rondinApp()">
+
+    <!-- Reproductor de Sonido Oculto -->
+    <audio id="scanSound" src="https://rondines.goratrack.link/prip.mp3" preload="auto"></audio>
+
+    <!-- Alertas (Toasts) -->
+    <div x-show="toast.show" x-transition.opacity x-cloak class="fixed top-4 left-4 right-4 z-[60] p-4 rounded-lg shadow-2xl text-center font-bold text-sm" :class="toast.type === 'error' ? 'bg-red-600 text-white' : (toast.type === 'warning' ? 'bg-amber-500 text-white' : 'bg-emerald-500 text-white')">
+        <span x-text="toast.message"></span>
+    </div>
+
+    <!-- PANTALLA DE LOGIN -->
+    <div x-show="!isAuthenticated" x-transition class="fixed inset-0 z-50 bg-slate-900 flex flex-col items-center justify-center p-6">
+        <div class="bg-white p-4 rounded-xl inline-block mb-8 shadow-lg shadow-blue-500/20">
+            <img src="https://goratrack.tecuidamos.mx/img/logo.png" alt="Goratrack Logo" class="h-10">
+        </div>
+        <h2 class="text-2xl font-bold text-white mb-2">Acceso Operativo</h2>
+        <p class="text-slate-400 text-sm mb-8 text-center">Ingrese su PIN de 4 dígitos</p>
+        
+        <form @submit.prevent="login()" class="w-full max-w-xs flex flex-col items-center">
+            <input type="password" inputmode="numeric" maxlength="6" x-model="pinInput" placeholder="••••" required class="w-full text-center text-4xl tracking-[1em] font-mono bg-slate-800 border-2 border-slate-600 text-white rounded-xl py-4 mb-6 outline-none focus:border-blue-500">
+            
+            <button type="submit" :disabled="isLoggingIn" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-4 rounded-xl text-lg transition disabled:opacity-50 disabled:cursor-not-allowed">
+                <span x-show="!isLoggingIn">INGRESAR</span>
+                <span x-show="isLoggingIn" style="display: none;">VALIDANDO...</span>
+            </button>
+
+            <button type="button" @click="clearCache()" class="mt-8 text-slate-500 text-xs underline py-2">Forzar Actualización de App</button>
+        </form>
+    </div>
+
+    <!-- APP PRINCIPAL DEL GUARDIA -->
+    <div x-show="isAuthenticated" x-cloak class="flex flex-col h-full w-full">
+        <header class="p-4 bg-slate-800 shadow-md flex justify-between items-center z-10 shrink-0">
+            <div>
+                <p class="text-[10px] text-slate-400 font-bold uppercase" x-text="sessionData.tenant_name"></p>
+                <p class="text-xs text-blue-400 font-bold" x-text="sessionData.guard_name"></p>
+            </div>
+            <div class="flex flex-col items-end">
+                <button @click="logout()" x-show="!isRoundActive && syncQueue.length === 0 && reportQueue.length === 0" class="text-xs text-red-400 underline p-2">Salir</button>
+                <button @click="processAllQueues()" x-show="syncQueue.length > 0 || reportQueue.length > 0" class="text-[10px] bg-amber-500 text-white px-2 py-1 rounded font-bold animate-pulse mt-1">
+                    <span x-text="syncQueue.length + reportQueue.length">0</span> Pendiente(s) ⬆
+                </button>
+            </div>
+        </header>
+
+        <!-- BANNER DE DIAGNÓSTICO TI (Solo visible si falla la sincronización) -->
+        <div x-show="syncError" x-cloak class="mx-4 mt-4 bg-red-600 border border-red-400 text-white p-3 rounded-lg shadow-lg flex justify-between items-center shrink-0">
+            <div class="flex-1 mr-2 overflow-hidden">
+                <h3 class="font-bold text-[11px] uppercase text-red-200 tracking-wide">⚠️ Error del Servidor Central</h3>
+                <p class="text-[10px] font-mono mt-1 break-words" x-text="syncError"></p>
+            </div>
+            <button @click="syncError = ''" class="bg-red-800 px-3 py-1.5 rounded-md text-xs font-bold hover:bg-red-900 transition shadow-inner">X</button>
+        </div>
+
+        <main class="flex-1 overflow-y-auto p-4 flex flex-col space-y-4">
+            
+            <!-- PANEL SIN RONDÍN ACTIVO -->
+            <div x-show="!isRoundActive" x-transition class="flex flex-col flex-1 h-full justify-center items-center w-full">
+                
+                <div class="w-full space-y-4">
+                    <button @click="openReportModal()" class="w-full py-4 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold shadow-lg flex justify-center items-center transition-transform transform active:scale-95">
+                        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                        ENVIAR REPORTE
+                    </button>
+
+                    <button @click="startRound()" class="btn-massive w-full rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-2xl shadow-lg shadow-emerald-500/30 flex justify-center items-center transition-transform transform active:scale-95">
+                        INICIAR RONDÍN
+                    </button>
+                </div>
+
+                <!-- Link discreto de Historial -->
+                <button @click="isHistoryModalOpen = true; loadHistory();" class="mt-8 text-sm text-slate-400 hover:text-white underline px-4 py-2 transition-colors">
+                    Historial de rondines
+                </button>
+
+            </div>
+
+            <!-- PANEL DE RONDÍN ACTIVO -->
+            <div x-show="isRoundActive" x-transition class="flex flex-col space-y-4 flex-1">
+                <div class="flex justify-between items-center text-xs shrink-0">
+                    <span class="text-slate-400">Ronda: <span class="font-mono text-white" x-text="activeRound.round_id"></span></span>
+                    <span class="font-bold uppercase" :class="activeRound.shift === 'Diurno' ? 'text-amber-400' : 'text-indigo-400'" x-text="'TURNO ' + activeRound.shift"></span>
+                </div>
+
+                <div class="bg-slate-800 p-3 rounded-xl border border-slate-700 text-xs text-slate-400 flex justify-between items-center shrink-0">
+                    <p>Lat: <span x-text="currentLat ? currentLat.toFixed(5) : '---'" class="font-mono text-emerald-300">---</span> | Lng: <span x-text="currentLng ? currentLng.toFixed(5) : '---'" class="font-mono text-emerald-300">---</span></p>
+                    <div class="h-2 w-2 rounded-full" :class="currentLat ? 'bg-emerald-500 animate-pulse' : 'bg-red-500'"></div>
+                </div>
+                
+                <button @click="startScanner()" class="btn-massive w-full shrink-0 rounded-2xl bg-blue-600 text-white font-bold text-2xl shadow-lg flex justify-center items-center transition-transform transform active:scale-95">ESCANEAR PUNTO</button>
+                
+                <div class="flex space-x-2 shrink-0">
+                    <button @click="openReportModal()" class="flex-1 py-3 rounded-xl bg-purple-600 text-white font-bold shadow flex justify-center items-center transition-transform transform active:scale-95 text-sm">
+                        <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg> REPORTE
+                    </button>
+                    <button @click="endRound()" class="flex-1 py-3 rounded-xl bg-slate-700 text-red-400 font-bold border border-red-900/50 transition-transform transform active:scale-95 text-sm">
+                        TERMINAR
+                    </button>
+                </div>
+                
+                <div class="flex-1 overflow-y-auto min-h-[150px]">
+                    <h3 class="text-xs text-slate-400 mb-2 sticky top-0 bg-[#0f172a] py-1">Historial de Turno</h3>
+                    <ul class="space-y-2">
+                        <template x-for="scan in activeRound.scans.slice().reverse()" :key="scan.id">
+                            <li class="bg-slate-800 p-2 rounded border-l-4 border-emerald-500 flex justify-between items-center">
+                                <div>
+                                    <p class="font-bold text-sm" x-text="scan.checkpointName"></p>
+                                    <p class="text-[10px] text-slate-400" x-text="formatTimeOnly(scan.timestamp)"></p>
+                                </div>
+                                <svg class="h-4 w-4 text-emerald-500" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" /></svg>
+                            </li>
+                        </template>
+                    </ul>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- MODAL NUEVO: HISTORIAL DE RONDINES -->
+    <div x-show="isHistoryModalOpen" x-cloak class="fixed inset-0 z-50 bg-slate-900 flex flex-col">
+        <div class="p-4 flex justify-between items-center bg-slate-800 shrink-0 border-b border-slate-700">
+            <h2 class="text-white font-bold">Mis Últimos Rondines</h2>
+            <button @click="isHistoryModalOpen = false" class="text-slate-400 bg-slate-700 hover:bg-slate-600 px-3 py-1.5 rounded font-bold text-sm">Cerrar</button>
+        </div>
+        <div class="flex-1 overflow-y-auto p-4 space-y-3">
+            <div x-show="guardHistory && guardHistory.length === 0" class="text-center text-slate-500 mt-10">
+                <svg class="mx-auto h-12 w-12 text-slate-700 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                <p class="text-sm">No tienes rondines completados recientemente.</p>
+            </div>
+            
+            <template x-for="(hist, index) in guardHistory" :key="index">
+                <div class="bg-slate-800 p-4 rounded-xl border border-slate-700 shadow-sm">
+                    <h3 class="font-bold text-blue-400 text-lg mb-2" x-text="hist.round_id"></h3>
+                    <div class="text-sm text-slate-300">
+                        <p class="mb-1"><span class="text-slate-500">Comienzo:</span> <span class="font-mono text-white" x-text="formatHistDate(hist.start_time)"></span></p>
+                        <p><span class="text-slate-500">Termino:</span> <span class="font-mono text-white" x-text="formatHistDate(hist.end_time)"></span></p>
+                    </div>
+                </div>
+            </template>
+        </div>
+    </div>
+
+    <!-- MODAL DE REPORTES DE INCIDENTES -->
+    <div x-show="isReportModalOpen" x-cloak class="fixed inset-0 z-50 bg-slate-900 flex flex-col">
+        <div class="p-4 flex justify-between items-center bg-slate-800 shrink-0">
+            <h2 class="text-white font-bold">Generar Reporte</h2>
+            <button @click="closeReportModal()" class="text-slate-400 bg-slate-700 hover:bg-slate-600 px-3 py-1.5 rounded font-bold text-sm">Cerrar</button>
+        </div>
+        <div class="flex-1 overflow-y-auto p-4 space-y-5">
+            <div>
+                <label class="block text-slate-400 text-xs font-bold mb-1 uppercase tracking-wide">Clasificación del Incidente *</label>
+                <select x-model="reportForm.category" class="w-full bg-slate-800 border border-slate-600 text-white rounded-lg p-3 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 font-bold">
+                    <option value="" disabled>-- Seleccione --</option>
+                    <option value="Objetos fuera de lugar">Objetos fuera de lugar</option>
+                    <option value="Zona vulnerable">Zona vulnerable</option>
+                    <option value="Desorganización">Desorganización</option>
+                    <option value="Zona de riesgo">Zona de riesgo</option>
+                    <option value="Suspensión de rondín">Suspensión de rondín</option>
+                    <option value="Fugas">Fugas</option>
+                    <option value="Luminarias">Luminarias</option>
+                    <option value="Otras">Otras (Especificar en descripción)</option>
+                </select>
+            </div>
+            <div>
+                <label class="block text-slate-400 text-xs font-bold mb-1 uppercase tracking-wide">Descripción del Hecho *</label>
+                <textarea x-model="reportForm.description" rows="4" placeholder="Describa el incidente con detalle..." class="w-full bg-slate-800 border border-slate-600 text-white rounded-lg p-3 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"></textarea>
+            </div>
+            <div>
+                <label class="block text-slate-400 text-xs font-bold mb-2 uppercase tracking-wide">Evidencia Fotográfica (Opcional)</label>
+                <p class="text-[10px] text-slate-500 mb-3 leading-tight">Las imágenes se comprimirán automáticamente para ahorrar datos móviles.</p>
+                <div class="grid grid-cols-3 gap-3">
+                    <div class="relative w-full rounded-lg bg-slate-800 border-2 border-dashed border-slate-600 flex items-center justify-center photo-slot overflow-hidden cursor-pointer" @click="document.getElementById('photoInput0').click()">
+                        <template x-if="!reportForm.photos[0]">
+                            <svg class="w-6 h-6 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                        </template>
+                        <template x-if="reportForm.photos[0]">
+                            <img :src="reportForm.photos[0]" class="w-full h-full object-cover">
+                        </template>
+                        <input type="file" id="photoInput0" accept="image/*" capture="environment" class="hidden" @change="handlePhotoUpload($event, 0)">
+                    </div>
+                    <div class="relative w-full rounded-lg bg-slate-800 border-2 border-dashed border-slate-600 flex items-center justify-center photo-slot overflow-hidden cursor-pointer" @click="document.getElementById('photoInput1').click()">
+                        <template x-if="!reportForm.photos[1]">
+                            <svg class="w-6 h-6 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                        </template>
+                        <template x-if="reportForm.photos[1]">
+                            <img :src="reportForm.photos[1]" class="w-full h-full object-cover">
+                        </template>
+                        <input type="file" id="photoInput1" accept="image/*" capture="environment" class="hidden" @change="handlePhotoUpload($event, 1)">
+                    </div>
+                    <div class="relative w-full rounded-lg bg-slate-800 border-2 border-dashed border-slate-600 flex items-center justify-center photo-slot overflow-hidden cursor-pointer" @click="document.getElementById('photoInput2').click()">
+                        <template x-if="!reportForm.photos[2]">
+                            <svg class="w-6 h-6 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                        </template>
+                        <template x-if="reportForm.photos[2]">
+                            <img :src="reportForm.photos[2]" class="w-full h-full object-cover">
+                        </template>
+                        <input type="file" id="photoInput2" accept="image/*" capture="environment" class="hidden" @change="handlePhotoUpload($event, 2)">
+                    </div>
+                </div>
+            </div>
+            <button @click="submitReport()" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-4 rounded-xl text-lg transition shadow-lg shadow-blue-500/30 mt-4">
+                ENVIAR REPORTE
+            </button>
+        </div>
+    </div>
+
+    <!-- Scanner Modal -->
+    <div x-show="isCameraOpen" x-cloak class="fixed inset-0 z-50 bg-slate-900 flex flex-col">
+        <div class="p-4 flex justify-between items-center bg-slate-800">
+            <h2 class="text-white font-bold">Escanear Rondín</h2>
+            <button @click="stopScanner()" class="text-white bg-slate-700 hover:bg-slate-600 px-4 py-2 rounded font-bold">Cancelar</button>
+        </div>
+        <div class="flex-1 flex items-center justify-center p-4">
+            <div id="reader" class="w-full max-w-md bg-black rounded-lg border-2 border-slate-700"></div>
+        </div>
+    </div>
+
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('sw.js').then(reg => {
+                    reg.onupdatefound = () => {
+                        const installingWorker = reg.installing;
+                        installingWorker.onstatechange = () => {
+                            if (installingWorker.state === 'installed' && navigator.serviceWorker.controller) { }
+                        };
+                    };
+                }).catch(err => console.log('SW Error:', err));
+            });
+        }
+    </script>
+
+    <script>
+        document.addEventListener('alpine:init', () => {
+            Alpine.data('rondinApp', () => {
+                let initialSession = null; 
+                let initialActiveRound = { round_id: '', shift: '', start_time: '', scans: [] };
+                let initialQueue = [];
+                let initialReportQueue = [];
+                let isRoundActiveFlag = false;
+
+                try { 
+                    const storedS = localStorage.getItem('gora_session'); if(storedS) initialSession = JSON.parse(storedS); 
+                    const storedRound = localStorage.getItem('gora_active_round'); 
+                    if(storedRound) { initialActiveRound = JSON.parse(storedRound); isRoundActiveFlag = true; }
+                    const storedQueue = localStorage.getItem('gora_sync_queue'); if(storedQueue) initialQueue = JSON.parse(storedQueue);
+                    const storedRepQueue = localStorage.getItem('gora_report_queue'); if(storedRepQueue) initialReportQueue = JSON.parse(storedRepQueue);
+                } catch (e) {}
+                
+                return {
+                    currentLat: null, currentLng: null, watchId: null,
+                    isAuthenticated: !!initialSession, sessionData: initialSession || {}, pinInput: '',
+                    isRoundActive: isRoundActiveFlag, activeRound: initialActiveRound, 
+                    syncQueue: initialQueue, reportQueue: initialReportQueue,
+                    guardHistory: [], isHistoryModalOpen: false,
+                    syncError: '', // NUEVO: Rastreador de errores de red/backend
+                    
+                    isCameraOpen: false, html5QrcodeScanner: null, isLoggingIn: false,
+                    isReportModalOpen: false, reportForm: { category: '', description: '', photos: [null, null, null] },
+
+                    apiUrlAuth: 'https://rondines.goratrack.link/api/auth.php', 
+                    apiUrlAdmin: 'https://rondines.goratrack.link/api/admin.php', 
+                    apiUrlSync: 'https://rondines.goratrack.link/api/sync.php', 
+                    apiUrlSetup: 'https://rondines.goratrack.link/api/setup_qr.php',
+                    apiUrlReports: 'https://rondines.goratrack.link/api/reports.php',
+                    apiUrlHistory: 'https://rondines.goratrack.link/api/history.php',
+                    
+                    toast: { show: false, message: '', type: 'success' }, knownCheckpoints: [],
+
+                    // NUEVO: Formateador Nivel Servidor (Evita choques con MySQL antiguos)
+                    getLocalSQLDate(d = new Date()) {
+                        const pad = n => n.toString().padStart(2, '0');
+                        return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+                    },
+
+                    async init() {
+                        this.startContinuousGPS();
+                        if (this.isAuthenticated) { 
+                            await this.fetchCheckpoints(); 
+                            this.loadHistory();
+                            this.processAllQueues();
+                        }
+                        window.addEventListener('online', () => { this.processAllQueues(); });
+                    },
+                    
+                    async clearCache() {
+                        if(confirm('¿Desea forzar la actualización de la App? Esto descargará la última versión sin borrar su historial.')) {
+                            if('serviceWorker' in navigator) {
+                                const regs = await navigator.serviceWorker.getRegistrations();
+                                for(let reg of regs) { await reg.unregister(); }
+                            }
+                            if ('caches' in window) {
+                                const cacheNames = await caches.keys();
+                                for(let name of cacheNames) { await caches.delete(name); }
+                            }
+                            
+                            const historyKeys = Object.keys(localStorage).filter(k => k.startsWith('gora_history_'));
+                            const historiesToSave = historyKeys.map(k => ({ key: k, val: localStorage.getItem(k) }));
+                            
+                            localStorage.clear();
+                            historiesToSave.forEach(h => localStorage.setItem(h.key, h.val));
+                            
+                            window.location.href = window.location.pathname + '?v=' + new Date().getTime();
+                        }
+                    },
+
+                    startContinuousGPS() { 
+                        if (navigator.geolocation) {
+                            this.watchId = navigator.geolocation.watchPosition(
+                                (pos) => { this.currentLat = pos.coords.latitude; this.currentLng = pos.coords.longitude; }, 
+                                (err) => { console.warn("GPS Background:", err); }, 
+                                { enableHighAccuracy: true, maximumAge: 10000, timeout: 5000 }
+                            );
+                        }
+                    },
+
+                    getFreshLocation() {
+                        return new Promise((resolve, reject) => {
+                            if (!navigator.geolocation) return reject('No soportado');
+                            navigator.geolocation.getCurrentPosition(
+                                pos => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+                                err => reject(err),
+                                { enableHighAccuracy: true, timeout: 7000, maximumAge: 0 }
+                            );
+                        });
+                    },
+
+                    showToast(msg, type = 'success') { 
+                        this.toast.message = msg; this.toast.type = type; 
+                        this.toast.show = true; 
+                        setTimeout(() => { this.toast.show = false; }, 3500); 
+                    },
+                    
+                    saveActiveRound() { localStorage.setItem('gora_active_round', JSON.stringify(this.activeRound)); },
+                    saveQueue() { localStorage.setItem('gora_sync_queue', JSON.stringify(this.syncQueue)); },
+                    saveReportQueue() { localStorage.setItem('gora_report_queue', JSON.stringify(this.reportQueue)); },
+
+                    calculateDistance(lat1, lon1, lat2, lon2) {
+                        const l1 = Number(lat1), ln1 = Number(lon1), l2 = Number(lat2), ln2 = Number(lon2);
+                        if(isNaN(l1) || isNaN(l2)) return 0;
+                        const R = 6371e3; 
+                        const f1 = l1 * Math.PI/180; 
+                        const f2 = l2 * Math.PI/180;
+                        const df = (l2-l1) * Math.PI/180; 
+                        const dl = (ln2-ln1) * Math.PI/180;
+                        const a = Math.sin(df/2) * Math.sin(df/2) + Math.cos(f1) * Math.cos(f2) * Math.sin(dl/2) * Math.sin(dl/2);
+                        return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)));
+                    },
+
+                    async login() {
+                        this.isLoggingIn = true;
+                        try {
+                            const cleanPin = this.pinInput.toString().trim();
+                            const res = await fetch(this.apiUrlAuth, { 
+                                method: 'POST', 
+                                headers: { 'Content-Type': 'application/json' }, 
+                                body: JSON.stringify({ pin: cleanPin }) 
+                            });
+                            
+                            const result = await res.json();
+                            if(res.ok && result.status === 'success') { 
+                                this.sessionData = result.user; this.isAuthenticated = true; 
+                                localStorage.setItem('gora_session', JSON.stringify(this.sessionData)); 
+                                this.loadHistory();
+                                await this.fetchCheckpoints(); 
+                            } else { 
+                                this.showToast(result.message || "PIN Incorrecto", "error"); 
+                            }
+                        } catch(e) { 
+                            this.showToast("Error de red. Conéctese para iniciar sesión.", "error"); 
+                        } finally {
+                            this.isLoggingIn = false;
+                        }
+                    },
+
+                    logout() { 
+                        if(confirm("¿Seguro que desea salir?")) { 
+                            this.isAuthenticated = false; this.sessionData = {}; this.pinInput = '';
+                            localStorage.removeItem('gora_session'); 
+                        } 
+                    },
+
+                    async fetchCheckpoints() { 
+                        if(!this.sessionData.tenant_id) return; 
+                        try { 
+                            const res = await fetch(`${this.apiUrlAdmin}?tenant_id=${this.sessionData.tenant_id}`); 
+                            if (res.ok) { 
+                                this.knownCheckpoints = await res.json(); 
+                                localStorage.setItem('gora_checkpoints_cache', JSON.stringify(this.knownCheckpoints)); 
+                            } 
+                        } catch (e) { 
+                            const cached = localStorage.getItem('gora_checkpoints_cache'); 
+                            if(cached) this.knownCheckpoints = JSON.parse(cached); 
+                        } 
+                    },
+                    
+                    startRound() { 
+                        // FIX TI: Permisividad operativa. Si no hay GPS, advertimos pero NO bloqueamos.
+                        if(!this.currentLat) { 
+                            this.showToast("Iniciando rondín sin señal GPS...", "warning"); 
+                        }
+                        
+                        this.isRoundActive = true; 
+                        const hr = new Date().getHours(); 
+                        const shift = (hr >= 7 && hr < 19) ? 'Diurno' : 'Nocturno';
+                        
+                        this.activeRound = { 
+                            tenant_id: this.sessionData.tenant_id, 
+                            user_id: this.sessionData.user_id, 
+                            round_id: 'RND-' + Date.now().toString().slice(-6), 
+                            shift: shift, 
+                            start_time: this.getLocalSQLDate(), 
+                            scans: [] 
+                        };
+                        this.saveActiveRound();
+                    },
+
+                    endRound() { 
+                        if(!confirm("¿Desea terminar este rondín?")) return;
+                        
+                        if (this.activeRound.scans.length === 0) {
+                            this.showToast("Rondín descartado (No hubo escaneos).", "warning");
+                            this.isRoundActive = false; 
+                            this.activeRound = { round_id: '', shift: '', start_time: '', scans: [] }; 
+                            localStorage.removeItem('gora_active_round');
+                            return;
+                        }
+
+                        this.activeRound.end_time = this.getLocalSQLDate(); // FIX FORMATO SQL
+                        
+                        this.saveToHistory({
+                            round_id: this.activeRound.round_id,
+                            start_time: this.activeRound.start_time,
+                            end_time: this.activeRound.end_time
+                        });
+
+                        this.syncQueue.push(this.activeRound); 
+                        this.saveQueue();
+
+                        this.isRoundActive = false; 
+                        this.activeRound = { round_id: '', shift: '', start_time: '', scans: [] }; 
+                        localStorage.removeItem('gora_active_round');
+
+                        this.showToast("Rondín finalizado. Sincronizando...", "success"); 
+                        this.processAllQueues();
+                    },
+
+                    async loadHistory() {
+                        if (!this.sessionData || !this.sessionData.user_id) return;
+                        
+                        const key = 'gora_history_' + this.sessionData.user_id;
+                        const stored = localStorage.getItem(key);
+                        if (stored) {
+                            this.guardHistory = JSON.parse(stored);
+                        } else {
+                            this.guardHistory = [];
+                        }
+
+                        if (navigator.onLine) {
+                            try {
+                                const res = await fetch(`${this.apiUrlHistory}?user_id=${this.sessionData.user_id}`);
+                                if (res.ok) {
+                                    const data = await res.json();
+                                    if (Array.isArray(data)) {
+                                        this.guardHistory = data;
+                                        localStorage.setItem(key, JSON.stringify(data)); 
+                                    }
+                                }
+                            } catch (e) {
+                                console.warn("Fallo de red en Historial: Mostrando caché local.");
+                            }
+                        }
+                    },
+
+                    saveToHistory(historyItem) {
+                        if (!this.sessionData || !this.sessionData.user_id) return;
+                        this.guardHistory.unshift(historyItem);
+                        if (this.guardHistory.length > 15) this.guardHistory.pop(); 
+                        
+                        const key = 'gora_history_' + this.sessionData.user_id;
+                        localStorage.setItem(key, JSON.stringify(this.guardHistory));
+                    },
+
+                    formatHistDate(dateString) {
+                        if (!dateString) return 'En curso...';
+                        return dateString; // El formato ya es limpio Y-m-d H:i:s
+                    },
+                    
+                    formatTimeOnly(dateString) {
+                        if (!dateString) return '';
+                        return dateString.substring(11, 19) || dateString;
+                    },
+
+                    openReportModal() {
+                        this.reportForm = { category: '', description: '', photos: [null, null, null] };
+                        this.isReportModalOpen = true;
+                    },
+
+                    closeReportModal() {
+                        this.isReportModalOpen = false;
+                    },
+
+                    compressImage(file) {
+                        return new Promise((resolve, reject) => {
+                            const reader = new FileReader();
+                            reader.readAsDataURL(file);
+                            reader.onload = (event) => {
+                                const img = new Image();
+                                img.src = event.target.result;
+                                img.onload = () => {
+                                    const canvas = document.createElement('canvas');
+                                    const MAX_WIDTH = 500;
+                                    let width = img.width;
+                                    let height = img.height;
+
+                                    if (width > MAX_WIDTH) {
+                                        height = Math.round((height * MAX_WIDTH) / width);
+                                        width = MAX_WIDTH;
+                                    }
+
+                                    canvas.width = width;
+                                    canvas.height = height;
+                                    const ctx = canvas.getContext('2d');
+                                    ctx.drawImage(img, 0, 0, width, height);
+
+                                    const dataUrl = canvas.toDataURL('image/jpeg', 0.6);
+                                    resolve(dataUrl);
+                                };
+                                img.onerror = error => reject(error);
+                            };
+                            reader.onerror = error => reject(error);
+                        });
+                    },
+
+                    async handlePhotoUpload(event, index) {
+                        const file = event.target.files[0];
+                        if(!file) return;
+                        
+                        this.showToast("Comprimiendo imagen...", "warning");
+                        try {
+                            const compressedBase64 = await this.compressImage(file);
+                            this.reportForm.photos[index] = compressedBase64;
+                            this.showToast("Imagen lista", "success");
+                        } catch(e) {
+                            this.showToast("Error al procesar imagen", "error");
+                        }
+                    },
+
+                    async submitReport() {
+                        if(!this.reportForm.category) return this.showToast("Seleccione una clasificación", "error");
+                        if(!this.reportForm.description.trim()) return this.showToast("Agregue una descripción", "error");
+
+                        this.showToast("Procesando...", "warning");
+
+                        // FIX TI: Asignación segura a 0 si no hay coordenadas en caché
+                        let rLat = this.currentLat || 0;
+                        let rLng = this.currentLng || 0;
+                        
+                        try {
+                            const freshPos = await this.getFreshLocation();
+                            rLat = freshPos.lat; rLng = freshPos.lng;
+                        } catch(e) {}
+
+                        const reportPayload = {
+                            folio: 'REP-' + Date.now().toString().slice(-6),
+                            tenant_id: this.sessionData.tenant_id,
+                            user_id: this.sessionData.user_id,
+                            round_id: this.isRoundActive ? this.activeRound.round_id : null,
+                            category: this.reportForm.category,
+                            description: this.reportForm.description,
+                            photos: this.reportForm.photos,
+                            lat: rLat,
+                            lng: rLng,
+                            timestamp: this.getLocalSQLDate()
+                        };
+
+                        this.reportQueue.push(reportPayload);
+                        this.saveReportQueue();
+
+                        this.closeReportModal();
+                        this.showToast("Reporte guardado con éxito.", "success");
+                        this.processAllQueues();
+                    },
+
+                    async startScanner() {
+                        this.isCameraOpen = true; 
+                        await this.$nextTick(); 
+                        if (!this.html5QrcodeScanner) this.html5QrcodeScanner = new Html5Qrcode("reader");
+                        try { await this.html5QrcodeScanner.start({ facingMode: "environment" }, { fps: 10, qrbox: { width: 250, height: 250 } }, (text) => { this.onScanSuccess(text); }, () => {}); } catch(e){}
+                    },
+
+                    async stopScanner() { 
+                        if (this.html5QrcodeScanner && this.html5QrcodeScanner.isScanning) { await this.html5QrcodeScanner.stop(); } 
+                        this.isCameraOpen = false; 
+                    },
+
+                    async onScanSuccess(decodedText) {
+                        await this.stopScanner();
+                        
+                        if(navigator.vibrate) navigator.vibrate([100, 50, 100]);
+                        try {
+                            const sound = document.getElementById('scanSound');
+                            if(sound) { sound.currentTime = 0; sound.play(); }
+                        } catch(err) {}
+                        
+                        this.showToast("Calculando ubicación...", "warning");
+
+                        try {
+                            const freshPos = await this.getFreshLocation();
+                            this.currentLat = freshPos.lat;
+                            this.currentLng = freshPos.lng;
+                        } catch(err) {}
+                        
+                        const matchedPoint = this.knownCheckpoints.find(cp => cp.uuid === decodedText);
+                        let name = "QR Desconocido";
+                        let distance = 0;
+                        let isValid = true;
+
+                        if (matchedPoint) {
+                            name = matchedPoint.name;
+                            
+                            if (!matchedPoint.expected_lat) {
+                                this.showToast("Ajustando sistema por primera vez...", "warning");
+                                try {
+                                    // FIX TI: Prevenir auto-configuración si las coordenadas son nulas o cero
+                                    if(this.currentLat && this.currentLat !== 0) {
+                                        const payload = { uuid: decodedText, lat: this.currentLat, lng: this.currentLng };
+                                        const res = await fetch(this.apiUrlSetup, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+                                        
+                                        if(res.ok) {
+                                            matchedPoint.expected_lat = this.currentLat;
+                                            matchedPoint.expected_lng = this.currentLng;
+                                            localStorage.setItem('gora_checkpoints_cache', JSON.stringify(this.knownCheckpoints));
+                                        }
+                                    } else {
+                                        this.showToast("No se puede guardar ubicación sin GPS", "error");
+                                    }
+                                } catch(e) { }
+                                
+                                isValid = true; 
+                                distance = 0;
+                                this.showToast(name + " Registrado y Escaneado", "success");
+                            } else {
+                                // Solo calcula distancia si el usuario tiene coordenadas reales
+                                if(this.currentLat && this.currentLat !== 0) {
+                                    distance = this.calculateDistance(this.currentLat, this.currentLng, matchedPoint.expected_lat, matchedPoint.expected_lng);
+                                    const tolerance = matchedPoint.radius_tolerance ? parseInt(matchedPoint.radius_tolerance) : 50;
+                                    isValid = distance <= tolerance;
+                                } else {
+                                    isValid = false; // Sin GPS se marca como alerta/revisión en panel
+                                }
+                                this.showToast(name + " Escaneado", "success");
+                            }
+                        } else {
+                            this.showToast("QR Desconocido", "error");
+                            isValid = false;
+                        }
+                        
+                        const scanData = { 
+                            id: Date.now(), uuid: decodedText, checkpointName: name, 
+                            timestamp: this.getLocalSQLDate(), 
+                            lat: this.currentLat || 0, // FIX TI: Fallback seguro a 0
+                            lng: this.currentLng || 0, // FIX TI: Fallback seguro a 0
+                            distance: Math.round(distance), 
+                            isValid: isValid ? 1 : 0 
+                        };
+                        
+                        this.activeRound.scans.push(scanData);
+                        this.saveActiveRound(); 
+                    },
+
+                    // EL MOTOR HÍBRIDO (DOBLE INTENTO + LOGGER VISUAL)
+                    async processAllQueues() {
+                        if (!navigator.onLine) return;
+                        
+                        if (this.syncQueue.length > 0) {
+                            try {
+                                // Intento 1: Objeto Envuelto (Nuevo Estándar)
+                                let res = await fetch(this.apiUrlSync, { 
+                                    method: 'POST', 
+                                    headers: { 'Content-Type': 'application/json' }, 
+                                    body: JSON.stringify({ rounds: this.syncQueue }) 
+                                });
+                                
+                                // Intento 2: Array Plano (Estándar Antiguo) - Por si el backend exige estructura plana
+                                if (!res.ok) {
+                                    res = await fetch(this.apiUrlSync, { 
+                                        method: 'POST', 
+                                        headers: { 'Content-Type': 'application/json' }, 
+                                        body: JSON.stringify(this.syncQueue) 
+                                    });
+                                }
+
+                                if (res.ok) { 
+                                    this.syncQueue = []; this.saveQueue(); 
+                                    this.syncError = ''; // Limpiamos el error si hubo éxito
+                                    this.showToast("Rondines sincronizados.", "success"); 
+                                } else {
+                                    // TRACEADOR DE ERRORES: Mostrará exactamente por qué falla
+                                    const errText = await res.text();
+                                    this.syncError = "Rechazado por BD: " + errText.substring(0, 150);
+                                    this.showToast("Fallo al subir rondín. Revisa el mensaje rojo.", "error");
+                                }
+                            } catch (e) {
+                                this.syncError = "Error de Conexión: " + e.message;
+                            }
+                        }
+
+                        if (this.reportQueue.length > 0) {
+                            try {
+                                const res = await fetch(this.apiUrlReports, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reports: this.reportQueue }) });
+                                if (res.ok) { 
+                                    this.reportQueue = []; this.saveReportQueue(); 
+                                    this.showToast("Reportes sincronizados.", "success"); 
+                                }
+                            } catch (e) {}
+                        }
+                    }
+                };
+            });
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,45 @@
+# ===========================================================
+
+#  RONDINES / GORATRACK — .gitignore
+# ============================================================
+
+# ------------------------------------------------------------
+# 🔴 CRÍTICO: Credenciales y configuración sensible
+# ------------------------------------------------------------
+api/db.php          # Contiene host, usuario y contraseña de MySQL
+*.env
+.env.*
+config.local.php
+secrets.php
+
+# ------------------------------------------------------------
+# 📁 Archivos subidos por usuarios (fotografías de incidentes)
+# ------------------------------------------------------------
+uploads/
+
+# ------------------------------------------------------------
+# 📋 Documentación interna de arquitectura
+# ------------------------------------------------------------
+context.md          # Expone estructura interna del sistema
+
+# ------------------------------------------------------------
+# 🛠 Archivos de entorno de desarrollo (editor / IDE)
+# ------------------------------------------------------------
+.vscode/
+*.code-workspace
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# ------------------------------------------------------------
+# 💻 Sistema operativo
+# ------------------------------------------------------------
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ------------------------------------------------------------
+# 📦 Dependencias (si en algún momento se agrega Node/Composer)
+# ------------------------------------------------------------
+node_modules/
+vendor/
