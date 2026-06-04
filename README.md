@@ -29,7 +29,7 @@
 
 1. **Clonar el repositorio**
    ```bash
-   git clone https://github.com/tu-usuario/rondines.git
+   git clone https://github.com/Willy100fuegos/rondines.git
    cd rondines
    ```
 2. **Configurar la base de datos**
@@ -42,7 +42,7 @@
    - Puedes usar cualquier servidor PHP (XAMPP, MAMP, LAMP) apuntando la raíz al directorio `rondines`.
    - Asegúrate de que el directorio `uploads/` sea escribible por el servidor web.
 5. **Acceder**
-   - WebApp móvil: abre `admin.html` en un dispositivo móvil.
+   - WebApp móvil: abre `index.html` en un dispositivo móvil.
    - Panel administrativo: abre `admin.html` en un navegador de escritorio y autentícate con las credenciales de SESCA.
 
 ## ⚙️ Configuración adicional
@@ -56,5 +56,3 @@
 Revisa `context.md` para conocer la arquitectura, modelo de datos y reglas de negocio estrictas del sistema.
 
 ---
-
-*Este README está pensado como la cara pública del proyecto. Mantén actualizado el contenido y las imágenes a medida que evolucione la plataforma.*
