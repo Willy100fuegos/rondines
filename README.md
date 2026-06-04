@@ -1,7 +1,5 @@
 # Rondines / Goratrack
 
-![Rondines Mobile App](/absolute/path/to/temp_image1.png)
-
 ## 📖 Descripción del proyecto
 
 **Rondines** es una solución integral de control de rondas para la empresa de seguridad privada **SESCA**. Está diseñada para que los rondineros (guardias de vigilancia) registren sus inspecciones mediante códigos QR y para que el área operativa y los clientes revisen la información en tiempo real.
@@ -29,7 +27,7 @@
 
 1. **Clonar el repositorio**
    ```bash
-   git clone https://github.com/tu-usuario/rondines.git
+   git clone https://github.com/Willy100fuegos/rondines.git
    cd rondines
    ```
 2. **Configurar la base de datos**
