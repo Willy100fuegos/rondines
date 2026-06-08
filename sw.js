@@ -1,4 +1,4 @@
-const CACHE_NAME = 'goratrack-pwa-v4'; // Versión actualizada para forzar la recarga
+const CACHE_NAME = 'goratrack-pwa-v11'; // Versión actualizada para forzar la recarga
 
 // Archivos estáticos locales fundamentales (Íconos y Sonido añadidos)
 const APP_SHELL = [
@@ -45,7 +45,7 @@ self.addEventListener('fetch', (event) => {
 
   // 1. IGNORAR llamadas a la API (Dejar que la App y el LocalStorage las manejen)
   if (url.pathname.includes('/api/')) {
-    return; 
+    return;
   }
 
   // 2. CACHEAR librerías externas y archivos locales dinámicamente
@@ -58,7 +58,7 @@ self.addEventListener('fetch', (event) => {
           if (networkResponse && networkResponse.status === 200) {
             caches.open(CACHE_NAME).then((cache) => cache.put(event.request, networkResponse));
           }
-        }).catch(() => {}); // Si no hay red, no importa, ya devolvimos el caché
+        }).catch(() => { }); // Si no hay red, no importa, ya devolvimos el caché
         return cachedResponse;
       }
 

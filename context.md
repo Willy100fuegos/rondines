@@ -88,7 +88,7 @@ Límites Numéricos (Overflow Protection): La columna distance_m es DECIMAL(10,2
 
 Trazabilidad Híbrida (uuid vs checkpoint_id): Para mantener retrocompatibilidad con las consultas antiguas del panel web, cuando el backend (sync.php) recibe un escaneo, utiliza el uuid alfanumérico que envió la app para buscar silenciosamente el id numérico (checkpoint_id) en la tabla checkpoints e insertarlo junto con los demás datos.
 
-Doble Cola de Sincronización (Retry Pattern): La app móvil maneja syncQueue (para rondines) y reportQueue (para incidentes). Si la red falla o el backend rechaza una petición (HTTP != 200), los datos permanecen en localStorage y se reintenta enviarlos automáticamente la próxima vez que se detecte el evento online del navegador o al iniciar/finalizar sesión.
+Doble Cola de Sincronización (Offline-First Manual Sync): La app móvil maneja syncQueue (para rondines) y reportQueue (para incidentes). Los datos siempre se guardan primero en localStorage. NO se sincroniza automáticamente al detectar señal. El guardia activa manualmente la subida presionando el botón "Subir Ahora" cuando sabe que tiene conectividad. La función syncAllPending() itera registro por registro: si un fetch falla, ese registro permanece en la cola y se muestra "Reintento fallido, intente más tarde".
 
 6. Integración del Service Worker (PWA)
 
