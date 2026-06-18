@@ -318,6 +318,7 @@
                     apiUrlAdmin: 'https://rondines.goratrack.link/api/admin.php',
                     apiUrl: 'https://rondines.goratrack.link/api/sync.php', // API para Rondines (exige formato Rounds)
                     apiReportUrl: 'https://rondines.goratrack.link/api/reports.php', // NUEVA API de reportes corporativa
+                    apiUrlSetup: 'https://rondines.goratrack.link/api/setup_qr.php', // API de auto-configuración de QR
 
                     user_id: null, tenant_id: null,
                     html5QrcodeScanner: null, isScanning: false, lastScanTime: 0,
@@ -504,19 +505,43 @@
 
                             // Buscar el nombre del punto en la caché LOCAL (Offline)
                             let pointName = "Punto Desconocido";
+                            let matchedPoint = null;
                             const cachedPoints = localStorage.getItem('gora_checkpoints_cache');
+                            let checkpointsList = [];
                             if (cachedPoints) {
-                                const checkpointsList = JSON.parse(cachedPoints);
-                                const matchedPoint = checkpointsList.find(cp => cp.uuid === decodedText);
+                                checkpointsList = JSON.parse(cachedPoints);
+                                matchedPoint = checkpointsList.find(cp => cp.uuid === decodedText);
                                 if (matchedPoint) {
                                     pointName = matchedPoint.name;
                                 }
                             }
 
-                            // NUEVO: Validar si el punto existe en el catálogo
+                            // Validar si el punto existe en el catálogo
                             if (pointName === "Punto Desconocido") {
                                 this.showToast('Punto no registrado en catálogo', 'error');
                                 return; // Detener ejecución y no guardar
+                            }
+
+                            // AUTO-CONFIGURACIÓN: Si el punto no tiene coordenadas, es primera vez
+                            if (matchedPoint && (matchedPoint.expected_lat === null || matchedPoint.expected_lat === undefined || matchedPoint.expected_lat === '')) {
+                                this.showToast('Ajustando sistema por primera vez...', 'warning');
+                                try {
+                                    const setupRes = await fetch(this.apiUrlSetup, {
+                                        method: 'POST',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({ uuid: decodedText, lat: loc.lat, lng: loc.lng })
+                                    });
+                                    if (setupRes.ok) {
+                                        // Actualizar caché local con las coordenadas configuradas
+                                        matchedPoint.expected_lat = loc.lat;
+                                        matchedPoint.expected_lng = loc.lng;
+                                        localStorage.setItem('gora_checkpoints_cache', JSON.stringify(checkpointsList));
+                                    } else {
+                                        this.showToast('Error configurando punto en servidor', 'error');
+                                    }
+                                } catch (setupErr) {
+                                    this.showToast('Sin señal para configurar. El escaneo continúa.', 'error');
+                                }
                             }
 
                             // Guardar en la cola offline

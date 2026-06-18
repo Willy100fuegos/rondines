@@ -1,4 +1,4 @@
-const CACHE_NAME = 'goratrack-pwa-v11'; // Versión actualizada para forzar la recarga
+const CACHE_NAME = 'goratrack-pwa-v12'; // Versión actualizada para forzar la recarga
 
 // Archivos estáticos locales fundamentales (Íconos y Sonido añadidos)
 const APP_SHELL = [
