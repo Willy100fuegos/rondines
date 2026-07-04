@@ -129,7 +129,8 @@
                         class="ml-1 text-slate-300"></span>
                 </p>
             </div>
-            <button @click="logout" class="text-slate-400 hover:text-white transition p-2 bg-slate-700/50 rounded-lg">
+            <button @click="confirmLogout"
+                class="text-slate-400 hover:text-white transition p-2 bg-slate-700/50 rounded-lg">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24"
                     stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -139,7 +140,21 @@
         </header>
 
         <main class="flex-1 overflow-y-auto p-6 space-y-6 pb-24 relative">
-            <div class="grid grid-cols-1 gap-4 mt-12">
+            <div class="grid grid-cols-1 gap-4 mt-6">
+                <!-- Link Registro / Bitácora -->
+                <div class="flex justify-between items-center px-1">
+                    <button @click="showLog = true"
+                        class="text-xs text-blue-400 hover:text-blue-300 font-semibold flex items-center space-x-1 transition">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2">
+                            </path>
+                        </svg>
+                        <span>Registro</span>
+                    </button>
+                    <span class="text-xs text-slate-500"
+                        x-text="'Hoy: ' + getTodayRoundsCount() + ' rondín(es)'"></span>
+                </div>
                 <button @click="startScanning"
                     class="btn-massive bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl p-6 shadow-lg shadow-blue-900/50 flex flex-col items-center justify-center space-y-3 transform active:scale-95 transition">
                     <div class="bg-white/20 p-4 rounded-full">
@@ -184,6 +199,97 @@
                 <p x-text="syncError"></p>
             </div>
         </main>
+    </div>
+
+    <!-- MODAL BITÁCORA / REGISTRO -->
+    <div x-show="showLog" x-cloak class="fixed inset-0 z-[100] bg-slate-900/95 backdrop-blur-sm overflow-y-auto">
+        <div class="min-h-screen flex items-start justify-center p-4 pt-8">
+            <div class="bg-slate-800 w-full max-w-md rounded-3xl shadow-2xl border border-slate-700 overflow-hidden">
+                <div
+                    class="p-4 bg-slate-800 border-b border-slate-700 flex justify-between items-center sticky top-0 z-10">
+                    <h3 class="font-black text-lg text-white">Bitácora del Turno</h3>
+                    <button @click="showLog = false" class="text-slate-400 hover:text-white p-2">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M6 18L18 6M6 6l12 12"></path>
+                        </svg>
+                    </button>
+                </div>
+
+                <div class="p-5 space-y-5">
+                    <!-- Resumen del día -->
+                    <div class="bg-slate-900 rounded-xl p-4 flex justify-around text-center">
+                        <div>
+                            <p class="text-2xl font-black text-blue-400" x-text="pendingQueue.length"></p>
+                            <p class="text-xs text-slate-400 font-bold">Escaneos Actuales</p>
+                        </div>
+                        <div class="border-l border-slate-700"></div>
+                        <div>
+                            <p class="text-2xl font-black text-emerald-400" x-text="getTodayRoundsCount()"></p>
+                            <p class="text-xs text-slate-400 font-bold">Rondines Hoy</p>
+                        </div>
+                    </div>
+
+                    <!-- Escaneos pendientes -->
+                    <div>
+                        <h4 class="text-sm font-bold text-slate-400 mb-3 uppercase tracking-wider">Escaneos en Curso
+                        </h4>
+                        <div x-show="pendingQueue.length === 0" class="text-center py-6">
+                            <p class="text-slate-500 text-sm">Sin escaneos pendientes</p>
+                        </div>
+                        <div class="space-y-2 max-h-60 overflow-y-auto">
+                            <template x-for="(scan, i) in pendingQueue" :key="i">
+                                <div class="bg-slate-900 rounded-lg p-3 flex justify-between items-center">
+                                    <div class="flex items-center space-x-3">
+                                        <div class="bg-blue-600/20 p-2 rounded-lg">
+                                            <svg class="w-4 h-4 text-blue-400" fill="none" stroke="currentColor"
+                                                viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                    d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2">
+                                                </path>
+                                            </svg>
+                                        </div>
+                                        <div>
+                                            <p class="text-sm font-bold text-white" x-text="scan.checkpointName"></p>
+                                            <p class="text-xs text-slate-500"
+                                                x-text="new Date(scan.scanned_at).toLocaleTimeString('es-MX', {hour:'2-digit', minute:'2-digit', second:'2-digit'})">
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <span class="text-xs text-blue-400 font-bold" x-text="'#' + (i + 1)"></span>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+
+                    <!-- Rondines completados hoy -->
+                    <div>
+                        <h4 class="text-sm font-bold text-slate-400 mb-3 uppercase tracking-wider">Rondines Completados
+                            Hoy</h4>
+                        <div x-show="getTodayRounds().length === 0" class="text-center py-6">
+                            <p class="text-slate-500 text-sm">Ningún rondín finalizado hoy</p>
+                        </div>
+                        <div class="space-y-2 max-h-60 overflow-y-auto">
+                            <template x-for="(round, ri) in getTodayRounds()" :key="ri">
+                                <div class="bg-slate-900 rounded-lg p-3">
+                                    <div class="flex justify-between items-center mb-2">
+                                        <span class="text-sm font-bold text-emerald-400" x-text="round.round_id"></span>
+                                        <span class="text-xs text-slate-500"
+                                            x-text="round.scans.length + ' puntos'"></span>
+                                    </div>
+                                    <div class="text-xs text-slate-400 flex justify-between">
+                                        <span
+                                            x-text="'Inicio: ' + new Date(round.start_time).toLocaleTimeString('es-MX', {hour:'2-digit', minute:'2-digit'})"></span>
+                                        <span
+                                            x-text="'Fin: ' + new Date(round.end_time).toLocaleTimeString('es-MX', {hour:'2-digit', minute:'2-digit'})"></span>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <div x-show="isScanning" x-cloak class="fixed inset-0 z-[100] bg-black flex flex-col">
@@ -243,36 +349,48 @@
                     </div>
 
                     <div>
-                        <label class="block text-sm font-bold text-slate-400 mb-2">Evidencia Fotográfica</label>
-                        <input type="file" accept="image/*" capture="environment" id="cameraInput" class="hidden"
-                            @change="handlePhotoUpload">
+                        <label class="block text-sm font-bold text-slate-400 mb-2">Evidencia Fotográfica (hasta
+                            3)</label>
+                        <input type="file" accept="image/*" capture="environment" id="cameraInput0" class="hidden"
+                            @change="handlePhotoUpload($event, 0)">
+                        <input type="file" accept="image/*" capture="environment" id="cameraInput1" class="hidden"
+                            @change="handlePhotoUpload($event, 1)">
+                        <input type="file" accept="image/*" capture="environment" id="cameraInput2" class="hidden"
+                            @change="handlePhotoUpload($event, 2)">
 
-                        <div x-show="!photoBase64" @click="document.getElementById('cameraInput').click()"
-                            class="photo-slot cursor-pointer w-full h-40">
-                            <div class="text-center">
-                                <svg class="w-10 h-10 text-slate-500 mx-auto mb-2" fill="none" stroke="currentColor"
-                                    viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                        d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z">
-                                    </path>
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                        d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path>
-                                </svg>
-                                <span class="text-sm font-bold text-slate-400">Tocar para tomar foto</span>
-                            </div>
-                        </div>
+                        <div class="grid grid-cols-3 gap-3">
+                            <template x-for="(photo, idx) in photosBase64" :key="idx">
+                                <div>
+                                    <div x-show="!photosBase64[idx]"
+                                        @click="document.getElementById('cameraInput' + idx).click()"
+                                        class="photo-slot cursor-pointer w-full h-28">
+                                        <div class="text-center">
+                                            <svg class="w-8 h-8 text-slate-500 mx-auto mb-1" fill="none"
+                                                stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                    d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z">
+                                                </path>
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                    d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                                            </svg>
+                                            <span class="text-xs font-bold text-slate-400"
+                                                x-text="'Foto ' + (idx + 1)"></span>
+                                        </div>
+                                    </div>
 
-                        <div x-show="photoBase64"
-                            class="relative w-full h-40 rounded-xl overflow-hidden border-2 border-slate-700">
-                            <img :src="photoBase64" class="w-full h-full object-cover">
-                            <button @click="photoBase64 = null"
-                                class="absolute top-2 right-2 bg-slate-900/80 p-2 rounded-full text-white backdrop-blur">
-                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                        d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16">
-                                    </path>
-                                </svg>
-                            </button>
+                                    <div x-show="photosBase64[idx]"
+                                        class="relative w-full h-28 rounded-xl overflow-hidden border-2 border-slate-700">
+                                        <img :src="photosBase64[idx]" class="w-full h-full object-cover">
+                                        <button @click="photosBase64[idx] = null"
+                                            class="absolute top-1 right-1 bg-slate-900/80 p-1.5 rounded-full text-white backdrop-blur">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                    d="M6 18L18 6M6 6l12 12"></path>
+                                            </svg>
+                                        </button>
+                                    </div>
+                                </div>
+                            </template>
                         </div>
                     </div>
 
@@ -324,9 +442,10 @@
                     html5QrcodeScanner: null, isScanning: false, lastScanTime: 0,
 
                     toast: { show: false, message: '', type: 'success' },
+                    showLog: false, // Modal bitácora
 
                     isReporting: false, isSubmitting: false,
-                    reportType: '', reportComment: '', photoBase64: null,
+                    reportType: '', reportComment: '', photosBase64: [null, null, null],
 
                     // OFFLINE-FIRST: Listas de almacenamiento local
                     pendingQueue: [],
@@ -416,6 +535,11 @@
                         }
                     },
 
+                    confirmLogout() {
+                        if (!confirm('¿Está seguro que desea cerrar sesión?')) return;
+                        this.logout();
+                    },
+
                     logout() {
                         localStorage.removeItem('guard_id');
                         localStorage.removeItem('guard_tenant');
@@ -424,6 +548,15 @@
                         this.sessionData = null;
                         this.isLoggedIn = false;
                         this.pin = '';
+                    },
+
+                    getTodayRounds() {
+                        const today = new Date().toISOString().slice(0, 10); // 'YYYY-MM-DD'
+                        return this.roundsQueue.filter(r => r.end_time && r.end_time.slice(0, 10) === today);
+                    },
+
+                    getTodayRoundsCount() {
+                        return this.getTodayRounds().length;
                     },
 
                     // NUEVO: Descargar y guardar lista de puntos
@@ -570,14 +703,14 @@
                         this.isReporting = true;
                         this.reportType = '';
                         this.reportComment = '';
-                        this.photoBase64 = null;
+                        this.photosBase64 = [null, null, null];
                     },
 
                     closeReportModal() {
                         this.isReporting = false;
                     },
 
-                    handlePhotoUpload(event) {
+                    handlePhotoUpload(event, slotIndex) {
                         const file = event.target.files[0];
                         if (!file) return;
 
@@ -592,11 +725,12 @@
                                 canvas.height = img.height * scaleSize;
                                 const ctx = canvas.getContext('2d');
                                 ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-                                this.photoBase64 = canvas.toDataURL('image/jpeg', 0.6);
+                                this.photosBase64[slotIndex] = canvas.toDataURL('image/jpeg', 0.6);
                             };
                             img.src = e.target.result;
                         };
                         reader.readAsDataURL(file);
+                        event.target.value = ''; // Reset para permitir re-seleccionar misma foto
                     },
 
                     async submitReport() {
@@ -607,7 +741,7 @@
                             const reportRecord = {
                                 report_type: this.reportType,
                                 comment: this.reportComment,
-                                photo_base64: this.photoBase64,
+                                photos_base64: [...this.photosBase64],
                                 scanned_at: new Date().toISOString(),
                                 lat: loc.lat,
                                 lng: loc.lng
@@ -726,7 +860,7 @@
                                         user_id: this.user_id,
                                         category: mapCategory,
                                         description: report.comment,
-                                        photos: [report.photo_base64, null, null], // Array requerido por la nueva API
+                                        photos: report.photos_base64 || [report.photo_base64 || null, null, null], // Compatible con reportes viejos y nuevos
                                         lat: report.lat,
                                         lng: report.lng,
                                         timestamp: report.scanned_at
