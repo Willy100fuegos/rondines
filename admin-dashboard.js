@@ -244,7 +244,7 @@ document.addEventListener('alpine:init', () => {
                     this.incidentReports = Array.isArray(data) ? data : [];
                     this.calculateReportKpis();
                 }
-            } catch (e) { }
+            } catch (e) { console.error('loadReports error:', e); }
         },
 
         calculateReportKpis() {
@@ -447,7 +447,7 @@ document.addEventListener('alpine:init', () => {
                     this.analyticsData = Array.isArray(data) ? data : [];
                     this.processAnalytics();
                 }
-            } catch (e) { console.error(e); }
+            } catch (e) { console.error('loadAnalytics error:', e); }
         },
 
         processAnalytics() {
@@ -570,14 +570,21 @@ document.addEventListener('alpine:init', () => {
             this.chartHeight = Math.max(256, sortedLabels.length * 35 + 60);
 
             this.$nextTick(() => {
-                const ctx = document.getElementById('complianceChart');
-                if (!ctx) return;
-
                 if (this.chartInstance) {
                     this.chartInstance.destroy();
+                    this.chartInstance = null;
                 }
 
-                this.chartInstance = new Chart(ctx, {
+                // Recreate the canvas element to avoid Chart.js corruption
+                const oldCanvas = document.getElementById('complianceChart');
+                if (!oldCanvas) return;
+                const parent = oldCanvas.parentNode;
+                oldCanvas.remove();
+                const newCanvas = document.createElement('canvas');
+                newCanvas.id = 'complianceChart';
+                parent.appendChild(newCanvas);
+
+                this.chartInstance = new Chart(newCanvas, {
                     type: 'bar',
                     data: {
                         labels: sortedLabels,
